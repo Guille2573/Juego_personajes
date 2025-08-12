@@ -1,4 +1,4 @@
-# app.py completo corregido para emitir correctamente 'game_started' y actualizar jugadores en join
+# app/app.py (No se necesitan cambios, está listo para producción)
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
@@ -19,12 +19,11 @@ def on_join(data):
     sid = request.sid
     result = game.handle_join(data, sid)
     emit('join_response', result, room=sid)
-    socketio.emit('players_update', game.get_players_info())  # actualizar lista jugadores a todos
+    socketio.emit('players_update', game.get_players_info())
 
 @socketio.on('start_game')
 def on_start():
     game.handle_start()
-    # emitir turno inicial y actualizar estado jugadores tras empezar
     socketio.emit('players_update', game.get_players_info())
 
 @socketio.on('make_accusation')

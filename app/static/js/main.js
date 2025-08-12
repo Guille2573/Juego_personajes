@@ -6,6 +6,7 @@ const socket = io();
 let playersList = [];
 let myName = null;
 let myTeam = [];
+// ... (resto de variables sin cambios) ...
 let currentTurn = null;
 let isAdmin = false;
 let gameStarted = false;
@@ -18,7 +19,9 @@ let muted = false;
 const colorMap = {};
 const colors = ["#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe"];
 
+
 // ELEMENTOS DEL DOM
+// ... (sin cambios) ...
 const joinSection = document.getElementById('join-section');
 const inputName = document.getElementById('input-name');
 const inputCharacter = document.getElementById('input-character');
@@ -49,11 +52,14 @@ const generalChatDiv = document.getElementById('general-chat');
 const generalMsgInput = document.getElementById('general-msg');
 const btnSendGeneral = document.getElementById('btn-send-general');
 const privateChatDiv = document.getElementById('private-chat');
+const pinnedMessageDiv = document.getElementById('pinned-message'); // Nuevo elemento
 const privateMsgInput = document.getElementById('private-msg');
 const btnSendPrivate = document.getElementById('btn-send-private');
 const turnSound = document.getElementById('turn-sound');
 
+
 // MANEJADORES DE SOCKET.IO
+// ... (join_response, players_update, game_started, turn_info sin cambios) ...
 socket.on('join_response', data => {
     if (data.success) {
         myName = inputName.value.trim();
@@ -98,16 +104,22 @@ socket.on('turn_info', data => {
     }
 });
 
-socket.on('update_team', team => {
-    myTeam = team;
+// **CAMBIO**: El evento ahora recibe un objeto con 'members' y 'leader_character'
+socket.on('update_team', teamInfo => {
+    myTeam = teamInfo.members;
     updateGroupPlayers();
+    updateAccusedDropdown(); // Actualizar el desplegable al cambiar de equipo
+    
+    // **CAMBIO**: Lógica para el mensaje fijado
+    const leaderName = myTeam[0];
+    pinnedMessageDiv.textContent = `El personaje de ${leaderName} es ${teamInfo.leader_character}`;
+    pinnedMessageDiv.style.display = 'block';
 });
 
 socket.on('accusation_result', data => alert(data.msg));
 socket.on('last_accusation_update', data => lastAccusationDiv.innerText = data.text);
 socket.on('presentation_message', msg => document.getElementById('presentation-message').textContent = msg || '');
 
-// **CAMBIO**: Manejadores de chat usan la nueva función
 socket.on('general_message', data => {
     addMessageToChat(generalChatDiv, data.sender, data.msg);
     if (!windowFocused || currentTab !== 'chatGeneral') {
@@ -124,6 +136,7 @@ socket.on('private_message', data => {
     }
 });
 
+// ... (Listeners de UI sin cambios) ...
 // LISTENERS DE UI
 btnJoin.onclick = () => {
     const name = inputName.value.trim();
@@ -185,21 +198,15 @@ window.onfocus = () => {
 };
 window.onblur = () => windowFocused = false;
 
-// FUNCIONES AUXILIARES
 
-/**
- * **CAMBIO**: Nueva función para añadir mensajes a los chats
- * @param {HTMLElement} chatDiv - El div del chat donde añadir el mensaje.
- * @param {string} sender - El nombre del que envía el mensaje.
- * @param {string} message - El contenido del mensaje.
- */
+// FUNCIONES AUXILIARES
+// ... (addMessageToChat, switchTab, updateBadges, updatePlayersList, updatePlayersListJoin sin cambios)...
 function addMessageToChat(chatDiv, sender, message) {
     const messageElement = document.createElement('div');
     messageElement.style.marginBottom = "10px";
 
     const senderElement = document.createElement('strong');
     senderElement.textContent = sender;
-    // Extraer el nombre base para la asignación de color
     const baseSenderName = sender.split(' ')[0]; 
     senderElement.style.color = getColorForPlayer(baseSenderName);
     senderElement.style.display = "block";
@@ -270,7 +277,8 @@ function updateGroupPlayers() {
         if (name === leader) {
             li.style.fontWeight = 'bold';
             li.style.color = 'gold';
-            li.innerHTML = `&#9733; ${name} (Líder)`;
+            // **CAMBIO**: Estrella a la derecha del nombre
+            li.innerHTML = `${name} (Líder) &#9733;`;
         } else if (name === myName) {
             li.style.fontWeight = 'bold';
             li.textContent = `${name} (Tú)`;
@@ -281,10 +289,11 @@ function updateGroupPlayers() {
     });
 }
 
+// **CAMBIO**: La función ahora filtra a los miembros del equipo (`myTeam`)
 function updateAccusedDropdown() {
     accusedSelect.innerHTML = '';
     playersList
-        .filter(p => p.name !== myName && (!myTeam || !myTeam.includes(p.name)))
+        .filter(p => p.name !== myName && !myTeam.includes(p.name))
         .forEach(p => {
             const option = document.createElement('option');
             option.value = p.name;

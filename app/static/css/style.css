@@ -79,3 +79,12 @@ border: 2px solid #d00 !important;
 background: #ffeaea !important;
 color: #d00 !important;
 }
+
+#pinned-message {
+    padding: 10px;
+    background-color: #f0e68c; /* Color arena */
+    border-bottom: 2px solid #ccc;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 10px;
+  }

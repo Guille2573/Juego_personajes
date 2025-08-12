@@ -12,6 +12,7 @@ class Game:
         self.teams = {}
         self.last_accusation = "No hay acusaciones aún."
 
+    # ... (handle_join, get_players_info, handle_start, notify_turn sin cambios) ...
     def handle_join(self, data, sid):
         name = data.get('name', '').strip()
         character = data.get('character', '').strip()
@@ -50,7 +51,6 @@ class Game:
                 self.socketio.emit('presentation_message', msg)
                 self.socketio.sleep(delay)
 
-            # **CAMBIO**: Bucle de presentación de personajes corregido
             players_copy = self.players[:]
             random.shuffle(players_copy)
             for p in players_copy:
@@ -105,19 +105,26 @@ class Game:
             self.socketio.emit('last_accusation_update', {'text': self.last_accusation})
 
             if correct:
-                leader = self.players[accuser_index]['team_id']
-                self.teams[leader].append(accused_name)
-                accused_player['team_id'] = leader
+                leader_player = self.find_player(self.players[accuser_index]['team_id'])
+                leader_name = leader_player['name']
+                self.teams[leader_name].append(accused_name)
+                accused_player['team_id'] = leader_name
                 
+                # **CAMBIO**: Se añade el personaje del líder a la información del equipo
+                team_info = {
+                    'members': self.teams[leader_name],
+                    'leader_character': leader_player['character']
+                }
+
                 self.socketio.emit('private_message', {
                     'sender': 'Sistema',
                     'msg': f"Has sido descubierto! Tu personaje era: {accused_player['character']}"
                 }, room=accused_player['sid'])
                 
-                for p_name in self.teams[leader]:
+                for p_name in self.teams[leader_name]:
                     player = self.find_player(p_name)
                     if player:
-                        self.socketio.emit('update_team', self.teams[leader], room=player['sid'])
+                        self.socketio.emit('update_team', team_info, room=player['sid'])
                 
                 self.turn_index = self.find_player_index(accused_name)
                 self.notify_turn()
@@ -126,15 +133,21 @@ class Game:
 
         self.socketio.start_background_task(reveal_result)
 
+    # ... (resto de funciones sin cambios) ...
     def next_turn(self):
         alive_players_indices = [i for i, p in enumerate(self.players) if not self.is_player_caught(p['name'])]
         if len(alive_players_indices) <= 1:
             self.socketio.emit('general_message', {'sender': 'Sistema', 'msg': 'Game over!'})
             return
         
-        current_player_list_index = alive_players_indices.index(self.turn_index)
-        next_player_list_index = (current_player_list_index + 1) % len(alive_players_indices)
-        self.turn_index = alive_players_indices[next_player_list_index]
+        try:
+            current_player_list_index = alive_players_indices.index(self.turn_index)
+            next_player_list_index = (current_player_list_index + 1) % len(alive_players_indices)
+            self.turn_index = alive_players_indices[next_player_list_index]
+        except ValueError:
+            # Si el jugador actual ya no está vivo (caso raro), se elige uno al azar
+            self.turn_index = random.choice(alive_players_indices)
+
         self.notify_turn()
 
     def is_player_caught(self, name):
@@ -155,7 +168,6 @@ class Game:
         msg = data.get('msg', '').strip()
         if msg:
             sender = next((p['name'] for p in self.players if p['sid'] == request.sid), "unknown")
-            # **CAMBIO**: Se emite un objeto con sender y msg
             self.socketio.emit('general_message', {'sender': sender, 'msg': msg})
 
     def handle_private_message(self, data):
@@ -163,12 +175,11 @@ class Game:
         sender_name = next((p['name'] for p in self.players if p['sid'] == request.sid), None)
         if msg and sender_name:
             sender = self.find_player(sender_name)
-            leader = sender['team_id']
-            members = self.teams.get(leader, [])
+            leader_name = sender['team_id']
+            members = self.teams.get(leader_name, [])
             for member_name in members:
                 member = self.find_player(member_name)
                 if member:
-                    # **CAMBIO**: Se emite un objeto con sender y msg (con añadido de "grupo")
                     self.socketio.emit('private_message', {
                         'sender': f"{sender_name} (grupo)",
                         'msg': msg
