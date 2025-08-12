@@ -1,4 +1,4 @@
-// main.js reorganizado
+// app/static/js/main.js (Corregido)
 
 // ------------------------
 // 1. CONEXIÓN SOCKET.IO
@@ -12,7 +12,6 @@ let playersList = [];
 let myName = null;
 let myTeam = [];
 let currentTurn = null;
-let lastAccusation = null;
 let isAdmin = false;
 let gameStarted = false;
 
@@ -32,8 +31,6 @@ const colors = [
 // 3. ELEMENTOS DEL DOM
 // ------------------------
 const joinSection = document.getElementById('join-section');
-const joinForm = document.getElementById('join-form');
-const playersListJoin = document.getElementById('players-list-join');
 const inputName = document.getElementById('input-name');
 const inputCharacter = document.getElementById('input-character');
 const btnJoin = document.getElementById('btn-join');
@@ -70,9 +67,6 @@ const privateChatDiv = document.getElementById('private-chat');
 const privateMsgInput = document.getElementById('private-msg');
 const btnSendPrivate = document.getElementById('btn-send-private');
 
-const playersDiv = document.getElementById('players');
-const groupPlayersDiv = document.getElementById('group-players');
-
 const turnSound = document.getElementById('turn-sound');
 
 // ------------------------
@@ -100,10 +94,7 @@ socket.on('players_update', players => {
   updatePlayersListJoin(playersList);
   updateAccusedDropdown();
   updateGroupPlayers();
-
-  if (gameStarted) {
-    startGameBtn.style.display = 'none';
-  }
+  startGameBtn.style.display = (isAdmin && !gameStarted) ? 'inline-block' : 'none';
 });
 
 socket.on('game_started', () => {
@@ -113,17 +104,19 @@ socket.on('game_started', () => {
 
 socket.on('turn_info', data => {
   currentTurn = data.current;
-  messageTurnDiv.textContent = "";
-  lastAccusationDiv.textContent = lastAccusation || "No hay acusaciones aún.";
-  btnAccuse.disabled = true;
+  lastAccusationDiv.textContent = data.last_accusation;
   accuseArea.style.display = "none";
+  btnAccuse.disabled = true;
 
   if (currentTurn === myName) {
     switchTab('general');
-    messageTurnDiv.textContent = "Te toca puto";
-    if (!muted) turnSound.play();
-    btnAccuse.disabled = false;
+    messageTurnDiv.textContent = "¡Es tu turno!";
+    // **CAMBIO**: Funcionalidad de mute corregida
+    if (!muted) {
+      turnSound.play();
+    }
     accuseArea.style.display = "block";
+    btnAccuse.disabled = false;
   } else {
     messageTurnDiv.textContent = `Turno de: ${currentTurn}`;
   }
@@ -138,16 +131,16 @@ socket.on('accusation_result', data => {
   alert(data.msg);
 });
 
+// **CAMBIO**: Nuevo listener para la última acusación
+socket.on('last_accusation_update', data => {
+    lastAccusationDiv.innerText = data.text; // Usamos innerText para preservar los saltos de línea
+});
+
 socket.on('general_message', msg => {
   const p = document.createElement('p');
   p.textContent = msg;
   generalChatDiv.appendChild(p);
   generalChatDiv.scrollTop = generalChatDiv.scrollHeight;
-
-  if (/.* accused .* of being .*/.test(msg)) {
-    lastAccusation = msg;
-    lastAccusationDiv.textContent = lastAccusation;
-  }
 
   if (!windowFocused || currentTab !== 'chatGeneral') {
     unreadGeneral++;
@@ -173,10 +166,8 @@ socket.on('presentation_message', msg => {
 
 
 // ------------------------
-// 5. LISTENERS DE EVENTOS DE LA UI (BOTONES, INPUTS, ETC.)
+// 5. LISTENERS DE EVENTOS DE LA UI
 // ------------------------
-
-// --- Sección de Unirse (Join) ---
 btnJoin.onclick = () => {
   const name = inputName.value.trim();
   const character = inputCharacter.value.trim();
@@ -189,10 +180,8 @@ btnJoin.onclick = () => {
 inputName.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
 inputCharacter.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
 
-// --- Controles Generales del Juego ---
 startGameBtn.onclick = () => {
   socket.emit('start_game');
-  accuseArea.style.display = "none";
 };
 
 muteBtn.onclick = () => {
@@ -200,12 +189,10 @@ muteBtn.onclick = () => {
   muteBtn.textContent = muted ? "Unmute" : "Mute";
 };
 
-// --- Pestañas de Navegación ---
 tabs.general.onclick = () => switchTab('general');
 tabs.chatGeneral.onclick = () => switchTab('chatGeneral');
 tabs.chatPrivate.onclick = () => switchTab('chatPrivate');
 
-// --- Área de Acusación ---
 btnAccuse.onclick = () => {
   const accused = accusedSelect.value;
   const guess = guessCharInput.value.trim();
@@ -218,7 +205,6 @@ btnAccuse.onclick = () => {
 };
 guessCharInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnAccuse.click(); });
 
-// --- Chat General ---
 btnSendGeneral.onclick = () => {
   const msg = generalMsgInput.value.trim();
   if (msg) {
@@ -228,7 +214,6 @@ btnSendGeneral.onclick = () => {
 };
 generalMsgInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSendGeneral.click(); });
 
-// --- Chat Privado ---
 btnSendPrivate.onclick = () => {
   const msg = privateMsgInput.value.trim();
   if (msg) {
@@ -238,8 +223,6 @@ btnSendPrivate.onclick = () => {
 };
 privateMsgInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSendPrivate.click(); });
 
-
-// --- Eventos de la Ventana (Window) ---
 window.addEventListener('focus', () => {
   windowFocused = true;
   unreadGeneral = 0;
@@ -254,11 +237,6 @@ window.addEventListener('blur', () => {
 // ------------------------
 // 6. FUNCIONES AUXILIARES
 // ------------------------
-
-/**
- * Cambia la pestaña activa en la interfaz.
- * @param {string} tab - El nombre de la pestaña a activar ('general', 'chatGeneral', 'chatPrivate').
- */
 function switchTab(tab) {
   for (const key in screens) {
     screens[key].classList.toggle('active', key === tab);
@@ -270,9 +248,6 @@ function switchTab(tab) {
   updateBadges();
 }
 
-/**
- * Actualiza los contadores de mensajes no leídos en las pestañas.
- */
 function updateBadges() {
   badgeGeneral.style.display = unreadGeneral > 0 ? 'inline-block' : 'none';
   badgeGeneral.textContent = unreadGeneral;
@@ -280,10 +255,6 @@ function updateBadges() {
   badgePrivate.textContent = unreadPrivate;
 }
 
-/**
- * Actualiza la lista de jugadores en la pantalla principal del juego.
- * @param {Array} players - La lista de jugadores.
- */
 function updatePlayersList(players) {
   const ul = document.getElementById('players-list');
   if (!ul) return;
@@ -299,10 +270,6 @@ function updatePlayersList(players) {
   });
 }
 
-/**
- * Actualiza la lista de jugadores en la pantalla de unirse.
- * @param {Array} players - La lista de jugadores.
- */
 function updatePlayersListJoin(players) {
   const ul = document.getElementById('players-list-join');
   if (!ul) return;
@@ -317,38 +284,41 @@ function updatePlayersListJoin(players) {
   });
 }
 
-/**
- * Actualiza la lista de miembros de tu equipo.
- */
 function updateGroupPlayers() {
   const teamDiv = document.getElementById('team-list');
   if (!teamDiv) return;
+  
+  // **CAMBIO**: Se limpia el contenido anterior y no se añade un h4
+  teamDiv.innerHTML = '';
+  
   if (!myTeam || myTeam.length === 0) {
-    teamDiv.innerHTML = '<h4>Tu equipo</h4><ul style="list-style:none;padding:0;"><li style="font-weight:bold;color:gold;">&#9733; ' + myName + ' (Líder)</li></ul>';
+    const defaultItem = document.createElement('li');
+    defaultItem.style.fontWeight = 'bold';
+    defaultItem.style.color = 'gold';
+    defaultItem.innerHTML = '&#9733; ' + myName + ' (Líder)';
+    teamDiv.appendChild(defaultItem);
     return;
   }
   const leader = myTeam[0];
-  let html = '<h4>Tu equipo</h4><ul style="list-style:none;padding:0;">';
   myTeam.forEach(name => {
+    const li = document.createElement('li');
     if (name === leader) {
-      html += `<li style="font-weight:bold;color:gold;">&#9733; ${name} (Líder)</li>`;
+      li.style.fontWeight = 'bold';
+      li.style.color = 'gold';
+      li.innerHTML = `&#9733; ${name} (Líder)`;
     } else if (name === myName) {
-      html += `<li style="font-weight:bold;">${name} (Tú)</li>`;
+      li.style.fontWeight = 'bold';
+      li.textContent = `${name} (Tú)`;
     } else {
-      html += `<li>${name}</li>`;
+      li.textContent = name;
     }
+    teamDiv.appendChild(li);
   });
-  html += '</ul>';
-  teamDiv.innerHTML = html;
 }
 
-/**
- * Actualiza el menú desplegable para acusar a un jugador.
- */
 function updateAccusedDropdown() {
   if (!accusedSelect) return;
   accusedSelect.innerHTML = '';
-  // Excluir al propio jugador y a los de tu grupo
   playersList
     .filter(p => p.name !== myName && (!myTeam || !myTeam.includes(p.name)))
     .forEach(p => {
@@ -359,11 +329,6 @@ function updateAccusedDropdown() {
     });
 }
 
-/**
- * Obtiene un color único para cada jugador.
- * @param {string} name - El nombre del jugador.
- * @returns {string} - Un color en formato hexadecimal.
- */
 function getColorForPlayer(name) {
   if (!colorMap[name]) {
     const takenColors = Object.values(colorMap);

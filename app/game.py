@@ -1,9 +1,8 @@
-# app/game.py
+# app/game.py (Corregido)
 
 import random
 from flask import request
-# No es necesario importar 'time' si solo lo usas para sleep. 
-# Si lo usas para otras cosas, puedes dejarlo, pero no para pausar la ejecución.
+# No es necesario importar 'time' si no se usa
 
 class Game:
     def __init__(self, socketio):
@@ -12,7 +11,7 @@ class Game:
         self.game_started = False
         self.turn_index = 0
         self.teams = {}  # key: leader_name, value: list of player names
-        self.last_accusation = None
+        self.last_accusation = "No hay acusaciones aún."
 
     def handle_join(self, data, sid):
         name = data.get('name', '').strip()
@@ -34,7 +33,6 @@ class Game:
         return {'success': True, 'msg': '', 'admin': admin, 'game_started': self.game_started}
 
     def get_players_info(self):
-        # Solo jugadores que no han sido adivinados (siguen en juego)
         return [
             {'name': p['name'], 'admin': p['admin']}
             for p in self.players
@@ -47,8 +45,10 @@ class Game:
 
             def presentation():
                 self.socketio.emit('game_started')
+
+                players = [p for p in self.players]
+                players = random.shuffle(players)
                 
-                # Contador 3, 2, 1, YAAA, mensaje extra
                 for n in [3, 2, 1]:
                     self.socketio.emit('presentation_message', str(n))
                     self.socketio.sleep(1)
@@ -57,30 +57,27 @@ class Game:
                 self.socketio.emit('presentation_message', "Atentos que luego os olvidais campeones")
                 self.socketio.sleep(2)
 
-                # Mostrar personajes uno a uno de forma aleatoria
-                players = [p for p in self.players]
-                random.shuffle(players)
+                tiempo_espera = 3
                 for p in players:
-                    name = str(p['name']).strip()
                     character = str(p['character']).strip()
-                    self.socketio.emit('presentation_message', f"{name}: {character}")
-                    self.socketio.sleep(4)
+                    self.socketio.emit('presentation_message', character)
+                    self.socketio.sleep(tiempo_espera)
 
-                # Mensajes finales
                 self.socketio.emit('presentation_message', "Os los repito otra vez")
                 self.socketio.sleep(2)
                 self.socketio.emit('presentation_message', "Que ya se que no os acordais de ninguno")
-                self.socketio.sleep(2)
+                self.socketio.sleep(3)
                 self.socketio.emit('presentation_message', "Borrachos")
                 self.socketio.sleep(2)
-                self.socketio.emit('presentation_message', "")  # Borra el mensaje
+                self.socketio.emit('presentation_message', "")
 
-                # Elegir aleatoriamente el primer jugador vivo
+                for p in players:
+                    character = str(p['character']).strip()
+                    self.socketio.emit('presentation_message', character)
+                    self.socketio.sleep(tiempo_espera)
+
                 alive_players = [i for i, p in enumerate(self.players) if p['team_id'] == p['name']]
-                if alive_players:
-                    self.turn_index = random.choice(alive_players)
-                else:
-                    self.turn_index = 0
+                self.turn_index = random.choice(alive_players) if alive_players else 0
 
                 self.notify_turn()
 
@@ -88,58 +85,58 @@ class Game:
             
     def notify_turn(self):
         current_player = self.players[self.turn_index]['name']
-        self.socketio.emit('turn_info', {'current': current_player})
+        self.socketio.emit('turn_info', {'current': current_player, 'last_accusation': self.last_accusation})
 
     def handle_accusation(self, data):
         accuser = data.get('accuser')
         accused = data.get('accused')
         guess = data.get('character', '').strip()
-        if not accuser or not accused or not guess:
+        if not all([accuser, accused, guess]):
             self.socketio.emit('accusation_result', {'msg': 'Datos inválidos'}, room=self.get_sid(accuser))
             return
-        if self.game_started is False:
+        if not self.game_started:
             self.socketio.emit('accusation_result', {'msg': 'El juego no ha comenzado'}, room=self.get_sid(accuser))
             return
+        
         accuser_index = self.find_player_index(accuser)
         if accuser_index != self.turn_index:
             self.socketio.emit('accusation_result', {'msg': 'No es tu turno'}, room=self.get_sid(accuser))
             return
+        
         accused_player = self.find_player(accused)
-        if not accused_player:
-            self.socketio.emit('accusation_result', {'msg': 'Jugador acusado no existe'}, room=self.get_sid(accuser))
-            return
-        if self.is_player_caught(accused):
-            self.socketio.emit('accusation_result', {'msg': 'Jugador ya fue adivinado'}, room=self.get_sid(accuser))
+        if not accused_player or self.is_player_caught(accused):
+            self.socketio.emit('accusation_result', {'msg': 'Jugador inválido o ya adivinado'}, room=self.get_sid(accuser))
             return
 
-        msg = f"{accuser} acusa a {accused} de ser {guess}."
-        self.last_accusation = msg
-        self.socketio.emit('general_message', msg)
-        self.socketio.emit('general_message', "y es....")
-
+        # **CAMBIO**: Se construye el mensaje de acusación
+        accusation_text = f"{accuser} acusa a {accused} de ser {guess}."
+        self.socketio.emit('last_accusation_update', {'text': accusation_text + "\ny es...."})
+        
         def reveal_result():
             self.socketio.sleep(2)
+            result_text = ""
             if guess.lower() == accused_player['character'].lower():
-                self.socketio.emit('general_message', "CORRECTO")
-                # Añadir acusado al equipo del líder
+                result_text = "CORRECTO"
                 leader = self.players[accuser_index]['team_id']
                 self.teams[leader].append(accused)
                 accused_player['team_id'] = leader
-
-                # Enviar mensaje privado al acusado con el personaje correcto (notificarle)
+                
                 self.socketio.emit('private_message', f"Has sido descubierto! Tu personaje era: {accused_player['character']}", room=accused_player['sid'])
-
-                # Actualizar equipos para todos miembros de ese equipo
-                for p in self.players:
-                    if p['name'] in self.teams[leader]:
-                        self.socketio.emit('update_team', self.teams[leader], room=p['sid'])
-
-                # Cambiar el turno al acusado
+                
+                for p_name in self.teams[leader]:
+                    player = self.find_player(p_name)
+                    if player:
+                        self.socketio.emit('update_team', self.teams[leader], room=player['sid'])
+                
                 self.turn_index = self.find_player_index(accused)
                 self.notify_turn()
             else:
-                self.socketio.emit('general_message', "falso")
+                result_text = "falso"
                 self.next_turn()
+
+            # **CAMBIO**: Se actualiza la acusación final para todos
+            self.last_accusation = f"{accusation_text}\ny es....\n{result_text}"
+            self.socketio.emit('last_accusation_update', {'text': self.last_accusation})
 
         self.socketio.start_background_task(reveal_result)
 
@@ -148,26 +145,24 @@ class Game:
         if len(alive_players) <= 1:
             self.socketio.emit('general_message', 'Game over!')
             return
-        self.turn_index = (self.turn_index + 1) % len(self.players)
-        while self.is_player_caught(self.players[self.turn_index]['name']):
-            self.turn_index = (self.turn_index + 1) % len(self.players)
+        
+        current_player_index = self.turn_index
+        while True:
+            current_player_index = (current_player_index + 1) % len(self.players)
+            if not self.is_player_caught(self.players[current_player_index]['name']):
+                self.turn_index = current_player_index
+                break
         self.notify_turn()
 
     def is_player_caught(self, name):
         player = self.find_player(name)
-        return player['team_id'] != name
+        return player['team_id'] != name if player else True
 
     def find_player(self, name):
-        for p in self.players:
-            if p['name'] == name:
-                return p
-        return None
+        return next((p for p in self.players if p['name'] == name), None)
 
     def find_player_index(self, name):
-        for i, p in enumerate(self.players):
-            if p['name'] == name:
-                return i
-        return -1
+        return next((i for i, p in enumerate(self.players) if p['name'] == name), -1)
 
     def get_sid(self, name):
         p = self.find_player(name)
@@ -177,16 +172,16 @@ class Game:
         msg = data.get('msg', '').strip()
         if msg:
             sender = next((p['name'] for p in self.players if p['sid'] == request.sid), "unknown")
-            full_msg = f"{sender}: {msg}"
-            self.socketio.emit('general_message', full_msg)
+            self.socketio.emit('general_message', f"{sender}: {msg}")
 
     def handle_private_message(self, data):
         msg = data.get('msg', '').strip()
-        sender = next((p['name'] for p in self.players if p['sid'] == request.sid), "unknown")
-        if msg and sender:
-            leader = self.find_player(sender)['team_id']
+        sender_name = next((p['name'] for p in self.players if p['sid'] == request.sid), None)
+        if msg and sender_name:
+            sender = self.find_player(sender_name)
+            leader = sender['team_id']
             members = self.teams.get(leader, [])
-            full_msg = f"{sender} (grupo): {msg}"
-            for p in self.players:
-                if p['name'] in members:
-                    self.socketio.emit('private_message', full_msg, room=p['sid'])
+            for member_name in members:
+                member = self.find_player(member_name)
+                if member:
+                    self.socketio.emit('private_message', f"{sender_name} (grupo): {msg}", room=member['sid'])
