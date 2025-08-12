@@ -1,5 +1,36 @@
+// main.js reorganizado
+
+// ------------------------
+// 1. CONEXIÓN SOCKET.IO
+// ------------------------
 const socket = io();
 
+// ------------------------
+// 2. ESTADO DEL JUEGO Y VARIABLES GLOBALES
+// ------------------------
+let playersList = [];
+let myName = null;
+let myTeam = [];
+let currentTurn = null;
+let lastAccusation = null;
+let isAdmin = false;
+let gameStarted = false;
+
+let unreadGeneral = 0;
+let unreadPrivate = 0;
+let currentTab = 'general';
+let windowFocused = true;
+let muted = false;
+
+const colorMap = {};
+const colors = [
+  "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231",
+  "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe"
+];
+
+// ------------------------
+// 3. ELEMENTOS DEL DOM
+// ------------------------
 const joinSection = document.getElementById('join-section');
 const joinForm = document.getElementById('join-form');
 const playersListJoin = document.getElementById('players-list-join');
@@ -21,6 +52,7 @@ const screens = {
 };
 const badgeGeneral = document.getElementById('badge-general');
 const badgePrivate = document.getElementById('badge-private');
+
 const messageTurnDiv = document.getElementById('message-turn');
 const lastAccusationDiv = document.getElementById('last-accusation');
 const accuseArea = document.getElementById('accuse-area');
@@ -43,74 +75,9 @@ const groupPlayersDiv = document.getElementById('group-players');
 
 const turnSound = document.getElementById('turn-sound');
 
-let playersList = [];
-let myName = null;
-let myTeam = [];
-let currentTurn = null;
-let lastAccusation = null;
-let isAdmin = false;
-let gameStarted = false;
-
-let unreadGeneral = 0;
-let unreadPrivate = 0;
-let currentTab = 'general';
-let windowFocused = true;
-let muted = false;
-
-const colorMap = {};
-const colors = [
-  "#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231",
-  "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe"
-];
-
-function getColorForPlayer(name) {
-  if (!colorMap[name]) {
-    const takenColors = Object.values(colorMap);
-    const availableColors = colors.filter(c => !takenColors.includes(c));
-    colorMap[name] = availableColors.length > 0 ? availableColors[0] : "#000";
-  }
-  return colorMap[name];
-}
-
-inputName.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
-inputCharacter.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
-
-btnJoin.onclick = () => {
-  const name = inputName.value.trim();
-  const character = inputCharacter.value.trim();
-  if (!name || !character) {
-    joinMsg.textContent = "Por favor introduce nombre y personaje.";
-    return;
-  }
-  socket.emit('join_game', {name, character});
-};
-
-muteBtn.onclick = () => {
-  muted = !muted;
-  muteBtn.textContent = muted ? "Unmute" : "Mute";
-};
-
-function switchTab(tab) {
-  for (const key in screens) {
-    screens[key].classList.toggle('active', key === tab);
-    tabs[key].classList.toggle('active', key === tab);
-  }
-  currentTab = tab;
-  if (tab === 'chatGeneral') unreadGeneral = 0;
-  if (tab === 'chatPrivate') unreadPrivate = 0;
-  updateBadges();
-}
-tabs.general.onclick = () => switchTab('general');
-tabs.chatGeneral.onclick = () => switchTab('chatGeneral');
-tabs.chatPrivate.onclick = () => switchTab('chatPrivate');
-
-function updateBadges() {
-  badgeGeneral.style.display = unreadGeneral > 0 ? 'inline-block' : 'none';
-  badgeGeneral.textContent = unreadGeneral;
-  badgePrivate.style.display = unreadPrivate > 0 ? 'inline-block' : 'none';
-  badgePrivate.textContent = unreadPrivate;
-}
-
+// ------------------------
+// 4. MANEJADORES DE EVENTOS DE SOCKET.IO
+// ------------------------
 socket.on('join_response', data => {
   if (data.success) {
     myName = inputName.value.trim();
@@ -121,11 +88,7 @@ socket.on('join_response', data => {
     joinSection.style.display = 'none';
     mainWrapper.style.display = 'flex';
 
-    if (isAdmin && !gameStarted) {
-      startGameBtn.style.display = 'inline-block';
-    } else {
-      startGameBtn.style.display = 'none';
-    }
+    startGameBtn.style.display = (isAdmin && !gameStarted) ? 'inline-block' : 'none';
   } else {
     joinMsg.textContent = "Error: " + data.msg;
   }
@@ -160,7 +123,7 @@ socket.on('turn_info', data => {
     messageTurnDiv.textContent = "Te toca puto";
     if (!muted) turnSound.play();
     btnAccuse.disabled = false;
-    accuseArea.style.display = "block"; // Solo aquí se muestra
+    accuseArea.style.display = "block";
   } else {
     messageTurnDiv.textContent = `Turno de: ${currentTurn}`;
   }
@@ -203,12 +166,46 @@ socket.on('private_message', msg => {
   }
 });
 
-
 socket.on('presentation_message', msg => {
   const div = document.getElementById('presentation-message');
   if (div) div.textContent = msg || '';
 });
 
+
+// ------------------------
+// 5. LISTENERS DE EVENTOS DE LA UI (BOTONES, INPUTS, ETC.)
+// ------------------------
+
+// --- Sección de Unirse (Join) ---
+btnJoin.onclick = () => {
+  const name = inputName.value.trim();
+  const character = inputCharacter.value.trim();
+  if (!name || !character) {
+    joinMsg.textContent = "Por favor introduce nombre y personaje.";
+    return;
+  }
+  socket.emit('join_game', { name, character });
+};
+inputName.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
+inputCharacter.addEventListener('keydown', e => { if (e.key === 'Enter') btnJoin.click(); });
+
+// --- Controles Generales del Juego ---
+startGameBtn.onclick = () => {
+  socket.emit('start_game');
+  accuseArea.style.display = "none";
+};
+
+muteBtn.onclick = () => {
+  muted = !muted;
+  muteBtn.textContent = muted ? "Unmute" : "Mute";
+};
+
+// --- Pestañas de Navegación ---
+tabs.general.onclick = () => switchTab('general');
+tabs.chatGeneral.onclick = () => switchTab('chatGeneral');
+tabs.chatPrivate.onclick = () => switchTab('chatPrivate');
+
+// --- Área de Acusación ---
 btnAccuse.onclick = () => {
   const accused = accusedSelect.value;
   const guess = guessCharInput.value.trim();
@@ -219,12 +216,9 @@ btnAccuse.onclick = () => {
   socket.emit('make_accusation', { accused, character: guess, accuser: myName });
   guessCharInput.value = '';
 };
+guessCharInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnAccuse.click(); });
 
-startGameBtn.onclick = () => {
-  socket.emit('start_game');
-  accuseArea.style.display = "none";
-};
-
+// --- Chat General ---
 btnSendGeneral.onclick = () => {
   const msg = generalMsgInput.value.trim();
   if (msg) {
@@ -232,7 +226,9 @@ btnSendGeneral.onclick = () => {
     generalMsgInput.value = '';
   }
 };
+generalMsgInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSendGeneral.click(); });
 
+// --- Chat Privado ---
 btnSendPrivate.onclick = () => {
   const msg = privateMsgInput.value.trim();
   if (msg) {
@@ -240,11 +236,10 @@ btnSendPrivate.onclick = () => {
     privateMsgInput.value = '';
   }
 };
-
-generalMsgInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSendGeneral.click(); });
 privateMsgInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSendPrivate.click(); });
-guessCharInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnAccuse.click(); });
 
+
+// --- Eventos de la Ventana (Window) ---
 window.addEventListener('focus', () => {
   windowFocused = true;
   unreadGeneral = 0;
@@ -256,6 +251,39 @@ window.addEventListener('blur', () => {
   windowFocused = false;
 });
 
+// ------------------------
+// 6. FUNCIONES AUXILIARES
+// ------------------------
+
+/**
+ * Cambia la pestaña activa en la interfaz.
+ * @param {string} tab - El nombre de la pestaña a activar ('general', 'chatGeneral', 'chatPrivate').
+ */
+function switchTab(tab) {
+  for (const key in screens) {
+    screens[key].classList.toggle('active', key === tab);
+    tabs[key].classList.toggle('active', key === tab);
+  }
+  currentTab = tab;
+  if (tab === 'chatGeneral') unreadGeneral = 0;
+  if (tab === 'chatPrivate') unreadPrivate = 0;
+  updateBadges();
+}
+
+/**
+ * Actualiza los contadores de mensajes no leídos en las pestañas.
+ */
+function updateBadges() {
+  badgeGeneral.style.display = unreadGeneral > 0 ? 'inline-block' : 'none';
+  badgeGeneral.textContent = unreadGeneral;
+  badgePrivate.style.display = unreadPrivate > 0 ? 'inline-block' : 'none';
+  badgePrivate.textContent = unreadPrivate;
+}
+
+/**
+ * Actualiza la lista de jugadores en la pantalla principal del juego.
+ * @param {Array} players - La lista de jugadores.
+ */
 function updatePlayersList(players) {
   const ul = document.getElementById('players-list');
   if (!ul) return;
@@ -271,6 +299,10 @@ function updatePlayersList(players) {
   });
 }
 
+/**
+ * Actualiza la lista de jugadores en la pantalla de unirse.
+ * @param {Array} players - La lista de jugadores.
+ */
 function updatePlayersListJoin(players) {
   const ul = document.getElementById('players-list-join');
   if (!ul) return;
@@ -281,11 +313,13 @@ function updatePlayersListJoin(players) {
     li.classList.add('player-box');
     li.style.backgroundColor = getColorForPlayer(p.name);
     if (p.admin) li.classList.add('player-admin');
-    if (p.name === myName) li.classList.add('player-self');
     ul.appendChild(li);
   });
 }
 
+/**
+ * Actualiza la lista de miembros de tu equipo.
+ */
 function updateGroupPlayers() {
   const teamDiv = document.getElementById('team-list');
   if (!teamDiv) return;
@@ -308,28 +342,10 @@ function updateGroupPlayers() {
   teamDiv.innerHTML = html;
 }
 
-function populateAccusedSelect(characters) {
-    const accusedSelect = document.getElementById('accused-select');
-    accusedSelect.innerHTML = ''; // Limpiar opciones previas
-  
-    if (!characters || characters.length === 0) {
-      const option = document.createElement('option');
-      option.textContent = 'No hay personajes disponibles';
-      option.disabled = true;
-      accusedSelect.appendChild(option);
-      return;
-    }
-  
-    characters.forEach(character => {
-      const option = document.createElement('option');
-      option.value = character.id; // Usa un identificador único si está disponible
-      option.textContent = character.name; // Nombre del personaje
-      accusedSelect.appendChild(option);
-    });
-  }
-
+/**
+ * Actualiza el menú desplegable para acusar a un jugador.
+ */
 function updateAccusedDropdown() {
-  const accusedSelect = document.getElementById('accused-select');
   if (!accusedSelect) return;
   accusedSelect.innerHTML = '';
   // Excluir al propio jugador y a los de tu grupo
@@ -341,4 +357,18 @@ function updateAccusedDropdown() {
       option.textContent = p.name;
       accusedSelect.appendChild(option);
     });
+}
+
+/**
+ * Obtiene un color único para cada jugador.
+ * @param {string} name - El nombre del jugador.
+ * @returns {string} - Un color en formato hexadecimal.
+ */
+function getColorForPlayer(name) {
+  if (!colorMap[name]) {
+    const takenColors = Object.values(colorMap);
+    const availableColors = colors.filter(c => !takenColors.includes(c));
+    colorMap[name] = availableColors.length > 0 ? availableColors[0] : "#000";
+  }
+  return colorMap[name];
 }

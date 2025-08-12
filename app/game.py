@@ -1,10 +1,9 @@
-# app.py (no cambios necesarios para chat privado)
-
-# game.py (modificado handle_accusation para enviar mensaje privado al acusado y arreglar manejo equipo)
+# app/game.py
 
 import random
 from flask import request
-import time
+# No es necesario importar 'time' si solo lo usas para sleep. 
+# Si lo usas para otras cosas, puedes dejarlo, pero no para pausar la ejecución.
 
 class Game:
     def __init__(self, socketio):
@@ -52,11 +51,11 @@ class Game:
                 # Contador 3, 2, 1, YAAA, mensaje extra
                 for n in [3, 2, 1]:
                     self.socketio.emit('presentation_message', str(n))
-                    time.sleep(1)
+                    self.socketio.sleep(1)
                 self.socketio.emit('presentation_message', "YAAA")
-                time.sleep(1)
+                self.socketio.sleep(1)
                 self.socketio.emit('presentation_message', "Atentos que luego os olvidais campeones")
-                time.sleep(2)
+                self.socketio.sleep(2)
 
                 # Mostrar personajes uno a uno de forma aleatoria
                 players = [p for p in self.players]
@@ -65,15 +64,15 @@ class Game:
                     name = str(p['name']).strip()
                     character = str(p['character']).strip()
                     self.socketio.emit('presentation_message', f"{name}: {character}")
-                    time.sleep(4)
+                    self.socketio.sleep(4)
 
                 # Mensajes finales
                 self.socketio.emit('presentation_message', "Os los repito otra vez")
-                time.sleep(2)
+                self.socketio.sleep(2)
                 self.socketio.emit('presentation_message', "Que ya se que no os acordais de ninguno")
-                time.sleep(2)
+                self.socketio.sleep(2)
                 self.socketio.emit('presentation_message', "Borrachos")
-                time.sleep(2)
+                self.socketio.sleep(2)
                 self.socketio.emit('presentation_message', "")  # Borra el mensaje
 
                 # Elegir aleatoriamente el primer jugador vivo
@@ -87,7 +86,6 @@ class Game:
 
             self.socketio.start_background_task(presentation)
             
-
     def notify_turn(self):
         current_player = self.players[self.turn_index]['name']
         self.socketio.emit('turn_info', {'current': current_player})
@@ -120,7 +118,7 @@ class Game:
         self.socketio.emit('general_message', "y es....")
 
         def reveal_result():
-            time.sleep(2)
+            self.socketio.sleep(2)
             if guess.lower() == accused_player['character'].lower():
                 self.socketio.emit('general_message', "CORRECTO")
                 # Añadir acusado al equipo del líder
