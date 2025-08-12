@@ -4,94 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Characters game</title>
-<style>
-  /* Tu CSS aquí */
-  body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f5f5f5; }
-  #join-section, #main-wrapper { max-width: 900px; margin: auto; padding: 10px; }
-  #join-section { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 40px; }
-  #join-form { background: white; padding: 20px; border-radius: 6px; width: 300px; box-shadow: 0 0 10px #ccc; }
-  #join-form input { width: 100%; margin-bottom: 10px; padding: 8px; font-size: 14px; }
-  #btn-join { width: 100%; padding: 10px; font-size: 16px; cursor: pointer; }
-  #players-list-join { width: 300px; background: white; border-radius: 6px; padding: 10px; box-shadow: 0 0 10px #ccc; max-height: 400px; overflow-y: auto; }
-  #players-list-join .player-box { padding: 8px; margin: 5px 0; border-radius: 4px; color: white; font-weight: bold; }
-  .player-admin { border: 2px solid gold; }
-  .player-self { border: 2px solid #444; }
-
-  #main-wrapper { display: none; flex-direction: column; height: 90vh; }
-  #tabs { display: flex; background: #333; }
-  #tabs button {
-    flex: 1; padding: 12px; border:none; background:#444; color: white; font-weight: bold; cursor: pointer;
-    position: relative;
-  }
-  #tabs button.active { background: #666; }
-  #tabs button .badge {
-    position: absolute; top: 5px; right: 15px; background: red; border-radius: 50%; color: white; font-size: 12px;
-    padding: 2px 6px; display: none;
-  }
-
-  #content { flex: 1; display: flex; background: white; }
-  #content > div.screen {
-    flex: 1; padding: 15px; display: none; overflow-y: auto; position: relative;
-  }
-  #content > div.screen.active { display: block; }
-
-  #players {
-    width: 150px; background: #222; color: white; padding: 10px; overflow-y: auto; border-left: 2px solid #ddd;
-  }
-  #players .player-box {
-    margin: 5px 0; padding: 6px; border-radius: 4px; color: white; font-weight: bold;
-  }
-  #players .player-self { border: 2px solid #fff; }
-
-  /* General Tab */
-  #message-turn { font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #d00; }
-  #last-accusation { margin-bottom: 15px; font-style: italic; color: #333; }
-  #accuse-area { margin-bottom: 20px; }
-  #accuse-area select, #accuse-area input { padding: 6px; font-size: 14px; margin-right: 6px; }
-  #accuse-area button { padding: 6px 12px; font-weight: bold; cursor: pointer; }
-
-  /* Chat screens */
-  .chat-window {
-    height: 60vh; border: 1px solid #ccc; padding: 10px; overflow-y: auto; background: #fafafa;
-    margin-bottom: 10px;
-  }
-  .chat-input {
-    width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box;
-  }
-  .btn-send {
-    padding: 8px 16px; font-weight: bold; margin-top: 5px; cursor: pointer;
-  }
-
-  /* Start Game Button */
-  #start-game-btn {
-    margin-bottom: 10px; padding: 10px 20px; background: #28a745; border: none; color: white;
-    font-weight: bold; cursor: pointer; border-radius: 4px;
-  }
-
-  /* Mute button */
-  #mute-btn {
-    position: absolute; top: 10px; right: 10px; padding: 6px 12px; cursor: pointer; background: #555; color: white; border: none; border-radius: 4px;
-  }
-
-  /* Group players (private chat) */
-  #group-players {
-    margin-top: 10px;
-  }
-  #group-players .player-box {
-    margin: 4px 0; padding: 5px; border-radius: 4px; font-weight: bold; color: white;
-  }
-
-  .player-turn {
-  border: 2px solid #d00 !important;
-  background: #ffeaea !important;
-  color: #d00 !important;
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
 <div id="join-section">
-  <form id="join-form">
+  <form id="join-form" onsubmit="return false;">
     <h2>Registro</h2>
     <input type="text" id="input-name" placeholder="Tu nombre" autocomplete="off" required />
     <input type="text" id="input-character" placeholder="Tu personaje" autocomplete="off" required />
@@ -118,8 +36,10 @@
     <div id="screen-general" class="screen active">
       <div id="message-turn"></div>
       <div id="last-accusation">No hay acusaciones aún.</div>
+      
+      <div id="presentation-message" style="font-size:2em;margin:20px 0;color:#d00;"></div>
+
       <div id="accuse-area" style="display:none;">
-        <div id="presentation-message" style="font-size:2em;margin:20px 0;color:#d00;"></div>
         <select id="accused-select"></select>
         <input type="text" id="guess-character" placeholder="Adivina el personaje" autocomplete="off" />
         <button id="btn-accuse">Acusar</button>
@@ -149,10 +69,10 @@
   </div>
 </div>
 
-<audio id="turn-sound" src="/static/sounds/alarm.mp3" preload="auto"></audio>
+<audio id="turn-sound" src="{{ url_for('static', filename='sounds/alarm.mp3') }}" preload="auto"></audio>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script src="/static/js/main.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
 </body>
 </html>
